@@ -162,10 +162,48 @@ app.post('/test', (req, res) => {
   });
 });
 
+// Twilio webhook endpoint
+app.post('/twilio', (req, res) => {
+  console.log('\n=== Twilio Webhook Received ===');
+  console.log('Full request body:', JSON.stringify(req.body, null, 2));
+  console.log('');
+  
+  // Extract common Twilio message fields
+  const messageBody = req.body.Body || req.body.body;
+  const from = req.body.From || req.body.from;
+  const to = req.body.To || req.body.to;
+  const messageSid = req.body.MessageSid || req.body.messageSid;
+  const accountSid = req.body.AccountSid || req.body.accountSid;
+  const numMedia = req.body.NumMedia || req.body.numMedia || '0';
+  
+  console.log('📨 Message Content:', messageBody);
+  console.log('📞 From:', from);
+  console.log('📞 To:', to);
+  console.log('🆔 Message SID:', messageSid);
+  console.log('🆔 Account SID:', accountSid);
+  console.log('📎 Number of Media:', numMedia);
+  
+  // Log all other fields
+  console.log('\nAll Twilio fields:');
+  Object.keys(req.body).forEach(key => {
+    if (!['Body', 'body', 'From', 'from', 'To', 'to', 'MessageSid', 'messageSid', 'AccountSid', 'accountSid', 'NumMedia', 'numMedia'].includes(key)) {
+      console.log(`  ${key}:`, req.body[key]);
+    }
+  });
+  
+  console.log('================================\n');
+  
+  // Respond with TwiML (Twilio expects XML response)
+  // Simple empty response - Twilio will accept this
+  res.type('text/xml');
+  res.send('<?xml version="1.0" encoding="UTF-8"?><Response></Response>');
+});
+
 // Start server
 app.listen(PORT, () => {
   console.log(`WhatsApp AI Assistant server running on port ${PORT}`);
-  console.log(`Webhook URL: http://localhost:${PORT}/webhook`);
+  console.log(`WhatsApp Webhook URL: http://localhost:${PORT}/webhook`);
+  console.log(`Twilio Webhook URL: http://localhost:${PORT}/twilio`);
   console.log(`Health check: http://localhost:${PORT}/health`);
 });
 
