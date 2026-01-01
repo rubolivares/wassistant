@@ -236,8 +236,17 @@ async function downloadFile(url, filepath, accountSid = null, authToken = null) 
 // Helper function to transcribe audio using OpenAI Whisper
 async function transcribeAudio(audioFilePath) {
   try {
+    // Read the file and create a File object for OpenAI
+    const fileBuffer = fs.readFileSync(audioFilePath);
+    const fileName = audioFilePath.split('/').pop() || 'audio.ogg';
+    
+    // Create a File object compatible with OpenAI SDK
+    const audioFile = new File([fileBuffer], fileName, {
+      type: 'audio/ogg'
+    });
+    
     const transcription = await openai.audio.transcriptions.create({
-      file: fs.createReadStream(audioFilePath),
+      file: audioFile,
       model: 'whisper-1',
     });
     return transcription.text;
