@@ -6,9 +6,9 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Middleware to parse JSON bodies
+// Middleware to parse JSON and form-encoded bodies
 app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Webhook verification endpoint (for WhatsApp Cloud API)
 app.get('/webhook', (req, res) => {
@@ -162,41 +162,57 @@ app.post('/test', (req, res) => {
   });
 });
 
-// Twilio webhook endpoint
+// Twilio webhook endpoint (GET for status callbacks, POST for incoming messages)
+app.get('/twilio', (req, res) => {
+  console.log('\n=== Twilio GET Request (Status Callback) ===');
+  console.log('Query params:', JSON.stringify(req.query, null, 2));
+  res.status(200).send('OK');
+});
+
 app.post('/twilio', (req, res) => {
-  console.log('\n=== Twilio Webhook Received ===');
-  console.log('Full request body:', JSON.stringify(req.body, null, 2));
-  console.log('');
-  
-  // Extract common Twilio message fields
-  const messageBody = req.body.Body || req.body.body;
-  const from = req.body.From || req.body.from;
-  const to = req.body.To || req.body.to;
-  const messageSid = req.body.MessageSid || req.body.messageSid;
-  const accountSid = req.body.AccountSid || req.body.accountSid;
-  const numMedia = req.body.NumMedia || req.body.numMedia || '0';
-  
-  console.log('📨 Message Content:', messageBody);
-  console.log('📞 From:', from);
-  console.log('📞 To:', to);
-  console.log('🆔 Message SID:', messageSid);
-  console.log('🆔 Account SID:', accountSid);
-  console.log('📎 Number of Media:', numMedia);
-  
-  // Log all other fields
-  console.log('\nAll Twilio fields:');
-  Object.keys(req.body).forEach(key => {
-    if (!['Body', 'body', 'From', 'from', 'To', 'to', 'MessageSid', 'messageSid', 'AccountSid', 'accountSid', 'NumMedia', 'numMedia'].includes(key)) {
-      console.log(`  ${key}:`, req.body[key]);
-    }
-  });
-  
-  console.log('================================\n');
-  
-  // Respond with TwiML (Twilio expects XML response)
-  // Simple empty response - Twilio will accept this
-  res.type('text/xml');
-  res.send('<?xml version="1.0" encoding="UTF-8"?><Response></Response>');
+  try {
+    console.log('\n=== Twilio Webhook Received ===');
+    console.log('Headers:', JSON.stringify(req.headers, null, 2));
+    console.log('Full request body:', JSON.stringify(req.body, null, 2));
+    console.log('Raw body type:', typeof req.body);
+    console.log('');
+    
+    // Extract common Twilio message fields (case-insensitive)
+    const messageBody = req.body.Body || req.body.body || req.body.BodyText || '';
+    const from = req.body.From || req.body.from || '';
+    const to = req.body.To || req.body.to || '';
+    const messageSid = req.body.MessageSid || req.body.messageSid || '';
+    const accountSid = req.body.AccountSid || req.body.accountSid || '';
+    const numMedia = req.body.NumMedia || req.body.numMedia || '0';
+    
+    console.log('📨 Message Content:', messageBody);
+    console.log('📞 From:', from);
+    console.log('📞 To:', to);
+    console.log('🆔 Message SID:', messageSid);
+    console.log('🆔 Account SID:', accountSid);
+    console.log('📎 Number of Media:', numMedia);
+    
+    // Log all other fields
+    console.log('\nAll Twilio fields:');
+    Object.keys(req.body).forEach(key => {
+      if (!['Body', 'body', 'From', 'from', 'To', 'to', 'MessageSid', 'messageSid', 'AccountSid', 'accountSid', 'NumMedia', 'numMedia'].includes(key)) {
+        console.log(`  ${key}:`, req.body[key]);
+      }
+    });
+    
+    console.log('================================\n');
+    
+    // Always respond with 200 OK and TwiML (Twilio expects XML response)
+    res.status(200);
+    res.type('text/xml');
+    res.send('<?xml version="1.0" encoding="UTF-8"?><Response></Response>');
+  } catch (error) {
+    console.error('Error processing Twilio webhook:', error);
+    // Still return 200 with TwiML to prevent Twilio from retrying
+    res.status(200);
+    res.type('text/xml');
+    res.send('<?xml version="1.0" encoding="UTF-8"?><Response></Response>');
+  }
 });
 
 // Start server
