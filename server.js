@@ -1,7 +1,18 @@
 import express from 'express';
 import dotenv from 'dotenv';
+import OpenAI from 'openai';
+import https from 'https';
+import http from 'http';
+import fs from 'fs';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
 
 dotenv.config();
+
+// Initialize OpenAI client
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY
+});
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -169,12 +180,55 @@ app.get('/twilio', (req, res) => {
   res.status(200).send('OK');
 });
 
-app.post('/twilio', (req, res) => {
+// Helper function to download file from URL (handles both HTTP and HTTPS)
+function downloadFile(url, filepath) {
+  return new Promise((resolve, reject) => {
+    const file = fs.createWriteStream(filepath);
+    const client = url.startsWith('https') ? https : http;
+    
+    client.get(url, (response) => {
+      // Handle redirects
+      if (response.statusCode === 301 || response.statusCode === 302) {
+        file.close();
+        fs.unlinkSync(filepath);
+        return downloadFile(response.headers.location, filepath).then(resolve).catch(reject);
+      }
+      
+      response.pipe(file);
+      file.on('finish', () => {
+        file.close();
+        resolve(filepath);
+      });
+    }).on('error', (err) => {
+      if (fs.existsSync(filepath)) {
+        fs.unlink(filepath, () => {}); // Delete the file on error
+      }
+      reject(err);
+    });
+  });
+}
+
+// Helper function to transcribe audio using OpenAI Whisper
+async function transcribeAudio(audioFilePath) {
+  try {
+    const transcription = await openai.audio.transcriptions.create({
+      file: fs.createReadStream(audioFilePath),
+      model: 'whisper-1',
+    });
+    return transcription.text;
+  } catch (error) {
+    console.error('Error transcribing audio:', error);
+    throw error;
+  }
+}
+
+app.post('/twilio', async (req, res) => {
+  let tempAudioPath = null;
+  
   try {
     console.log('\n=== Twilio Webhook Received ===');
     console.log('Headers:', JSON.stringify(req.headers, null, 2));
     console.log('Full request body:', JSON.stringify(req.body, null, 2));
-    console.log('Raw body type:', typeof req.body);
     console.log('');
     
     // Extract common Twilio message fields (case-insensitive)
@@ -183,7 +237,7 @@ app.post('/twilio', (req, res) => {
     const to = req.body.To || req.body.to || '';
     const messageSid = req.body.MessageSid || req.body.messageSid || '';
     const accountSid = req.body.AccountSid || req.body.accountSid || '';
-    const numMedia = req.body.NumMedia || req.body.numMedia || '0';
+    const numMedia = parseInt(req.body.NumMedia || req.body.numMedia || '0');
     
     console.log('📨 Message Content:', messageBody);
     console.log('📞 From:', from);
@@ -191,6 +245,48 @@ app.post('/twilio', (req, res) => {
     console.log('🆔 Message SID:', messageSid);
     console.log('🆔 Account SID:', accountSid);
     console.log('📎 Number of Media:', numMedia);
+    
+    // Check if there's a voice note/audio message
+    if (numMedia > 0) {
+      const mediaUrl = req.body[`MediaUrl0`] || req.body[`mediaUrl0`];
+      const mediaContentType = req.body[`MediaContentType0`] || req.body[`mediaContentType0`] || '';
+      
+      console.log('🎤 Media URL:', mediaUrl);
+      console.log('🎤 Media Content Type:', mediaContentType);
+      
+      // Check if it's an audio file
+      if (mediaUrl && mediaContentType.startsWith('audio/')) {
+        console.log('🎵 Audio file detected! Processing transcription...');
+        
+        // Download the audio file
+        const __filename = fileURLToPath(import.meta.url);
+        const __dirname = dirname(__filename);
+        tempAudioPath = join(__dirname, `temp_audio_${Date.now()}.${mediaContentType.split('/')[1] || 'ogg'}`);
+        
+        await downloadFile(mediaUrl, tempAudioPath);
+        console.log('✅ Audio file downloaded:', tempAudioPath);
+        
+        // Transcribe using OpenAI Whisper
+        const transcription = await transcribeAudio(tempAudioPath);
+        console.log('📝 Transcription:', transcription);
+        
+        // Clean up temp file
+        fs.unlinkSync(tempAudioPath);
+        tempAudioPath = null;
+        
+        // Return JSON response with transcription
+        res.status(200);
+        res.type('application/json');
+        res.json({
+          success: true,
+          transcription: transcription,
+          messageSid: messageSid,
+          from: from,
+          mediaType: mediaContentType
+        });
+        return;
+      }
+    }
     
     // Log all other fields
     console.log('\nAll Twilio fields:');
@@ -202,16 +298,39 @@ app.post('/twilio', (req, res) => {
     
     console.log('================================\n');
     
-    // Always respond with 200 OK and TwiML (Twilio expects XML response)
+    // For non-audio messages, respond with TwiML (Twilio expects XML response)
     res.status(200);
     res.type('text/xml');
     res.send('<?xml version="1.0" encoding="UTF-8"?><Response></Response>');
   } catch (error) {
     console.error('Error processing Twilio webhook:', error);
-    // Still return 200 with TwiML to prevent Twilio from retrying
-    res.status(200);
-    res.type('text/xml');
-    res.send('<?xml version="1.0" encoding="UTF-8"?><Response></Response>');
+    
+    // Clean up temp file if it exists
+    if (tempAudioPath && fs.existsSync(tempAudioPath)) {
+      try {
+        fs.unlinkSync(tempAudioPath);
+      } catch (e) {
+        console.error('Error deleting temp file:', e);
+      }
+    }
+    
+    // Return error response as JSON if it was an audio request, otherwise TwiML
+    const numMedia = parseInt(req.body?.NumMedia || req.body?.numMedia || '0');
+    const mediaContentType = req.body?.[`MediaContentType0`] || req.body?.[`mediaContentType0`] || '';
+    
+    if (numMedia > 0 && mediaContentType.startsWith('audio/')) {
+      res.status(500);
+      res.type('application/json');
+      res.json({
+        success: false,
+        error: error.message
+      });
+    } else {
+      // Still return 200 with TwiML to prevent Twilio from retrying
+      res.status(200);
+      res.type('text/xml');
+      res.send('<?xml version="1.0" encoding="UTF-8"?><Response></Response>');
+    }
   }
 });
 
