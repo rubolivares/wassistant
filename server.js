@@ -331,12 +331,22 @@ app.post('/twilio', async (req, res) => {
         fs.unlinkSync(tempAudioPath);
         tempAudioPath = null;
         
+        // Escape XML special characters in transcription
+        const escapeXml = (text) => {
+          return text
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&apos;');
+        };
+        
         // Return TwiML response with transcription to Twilio
         res.status(200);
         res.type('text/xml');
         const twimlResponse = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Message>${transcription}</Message>
+  <Message>${escapeXml(transcription)}</Message>
 </Response>`;
         res.send(twimlResponse);
         return;
