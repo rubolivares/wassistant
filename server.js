@@ -181,17 +181,55 @@ app.get('/twilio', (req, res) => {
 });
 
 // Helper function to download file from URL (handles both HTTP and HTTPS)
-function downloadFile(url, filepath) {
+// For Twilio media URLs, uses Basic Auth with AccountSid and AuthToken
+function downloadFile(url, filepath, accountSid = null, authToken = null) {
   return new Promise((resolve, reject) => {
     const file = fs.createWriteStream(filepath);
     const client = url.startsWith('https') ? https : http;
     
-    client.get(url, (response) => {
+    // Check if this is a Twilio API URL and we have credentials
+    const isTwilioUrl = url.includes('api.twilio.com');
+    let authHeader = '';
+    
+    if (isTwilioUrl && accountSid && authToken) {
+      // Use Basic Auth for Twilio API
+      const credentials = Buffer.from(`${accountSid}:${authToken}`).toString('base64');
+      authHeader = `Basic ${credentials}`;
+    }
+    
+    const options = {
+      headers: {}
+    };
+    
+    if (authHeader) {
+      options.headers['Authorization'] = authHeader;
+    }
+    
+    client.get(url, options, (response) => {
       // Handle redirects
       if (response.statusCode === 301 || response.statusCode === 302) {
         file.close();
         fs.unlinkSync(filepath);
-        return downloadFile(response.headers.location, filepath).then(resolve).catch(reject);
+        return downloadFile(response.headers.location, filepath, accountSid, authToken).then(resolve).catch(reject);
+      }
+      
+      // Handle authentication errors
+      if (response.statusCode === 401 || response.statusCode === 403) {
+        file.close();
+        if (fs.existsSync(filepath)) {
+          fs.unlinkSync(filepath);
+        }
+        reject(new Error(`Authentication failed: ${response.statusCode}. Make sure TWILIO_AUTH_TOKEN is set correctly.`));
+        return;
+      }
+      
+      if (response.statusCode !== 200) {
+        file.close();
+        if (fs.existsSync(filepath)) {
+          fs.unlinkSync(filepath);
+        }
+        reject(new Error(`Failed to download file: HTTP ${response.statusCode}`));
+        return;
       }
       
       response.pipe(file);
@@ -258,12 +296,26 @@ app.post('/twilio', async (req, res) => {
       if (mediaUrl && mediaContentType.startsWith('audio/')) {
         console.log('🎵 Audio file detected! Processing transcription...');
         
+        // Get Twilio credentials for authentication
+        const twilioAuthToken = process.env.TWILIO_AUTH_TOKEN;
+        if (!twilioAuthToken) {
+          console.error('❌ TWILIO_AUTH_TOKEN not set. Cannot download audio from Twilio.');
+          res.status(500);
+          res.type('application/json');
+          res.json({
+            success: false,
+            error: 'TWILIO_AUTH_TOKEN environment variable is required to download audio files'
+          });
+          return;
+        }
+        
         // Download the audio file
         const __filename = fileURLToPath(import.meta.url);
         const __dirname = dirname(__filename);
         tempAudioPath = join(__dirname, `temp_audio_${Date.now()}.${mediaContentType.split('/')[1] || 'ogg'}`);
         
-        await downloadFile(mediaUrl, tempAudioPath);
+        console.log('⬇️  Downloading audio file from Twilio...');
+        await downloadFile(mediaUrl, tempAudioPath, accountSid, twilioAuthToken);
         console.log('✅ Audio file downloaded:', tempAudioPath);
         
         // Transcribe using OpenAI Whisper
