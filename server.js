@@ -399,31 +399,18 @@ app.post('/twilio', async (req, res) => {
       }
     }
     
-    // Always return TwiML (Twilio expects XML, not JSON)
-    // Return 200 to prevent Twilio from retrying
-    res.status(200);
-    res.type('text/xml');
-    
-    // Escape error message for XML
-    const escapeXml = (text) => {
-      return String(text)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&apos;');
+    // Return JSON error response
+    res.status(500);
+    res.type('application/json');
+    const errorResponse = {
+      success: false,
+      error: error.message
     };
     
-    const errorMessage = `Error processing voice note: ${escapeXml(error.message)}`;
-    const twimlError = `<?xml version="1.0" encoding="UTF-8"?>
-<Response>
-  <Message>${errorMessage}</Message>
-</Response>`;
+    console.error('📤 Sending error JSON response:');
+    console.error(JSON.stringify(errorResponse, null, 2));
     
-    console.error('📤 Sending error TwiML response to Twilio:');
-    console.error(twimlError);
-    
-    res.send(twimlError);
+    res.json(errorResponse);
   }
 });
 
