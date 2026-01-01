@@ -1,8 +1,6 @@
 import express from 'express';
 import dotenv from 'dotenv';
 import OpenAI from 'openai';
-import https from 'https';
-import http from 'http';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
@@ -180,96 +178,53 @@ app.get('/twilio', (req, res) => {
   res.status(200).send('OK');
 });
 
-// Helper function to download file from URL (handles both HTTP and HTTPS)
-// Twilio media URLs are publicly accessible by default, but can use Basic Auth if needed
-function downloadFile(url, filepath, accountSid = null, authToken = null) {
-  return new Promise((resolve, reject) => {
-    const file = fs.createWriteStream(filepath);
-    const client = url.startsWith('https') ? https : http;
-    
-    // Check if this is a Twilio API URL
+// Helper function to download file from URL using fetch (more reliable)
+async function downloadFile(url, filepath, accountSid = null, authToken = null) {
+  try {
     const isTwilioUrl = url.includes('api.twilio.com');
     
-    // Try without auth first (Twilio media URLs are public by default)
-    // If auth credentials are provided, use them
-    const options = {
-      headers: {}
-    };
+    // Build headers
+    const headers = {};
     
+    // Always use authentication for Twilio URLs if credentials are provided
     if (isTwilioUrl && accountSid && authToken) {
-      // Use Basic Auth for Twilio API (if credentials are provided)
       const credentials = Buffer.from(`${accountSid}:${authToken}`).toString('base64');
-      options.headers['Authorization'] = `Basic ${credentials}`;
+      headers['Authorization'] = `Basic ${credentials}`;
       console.log('🔐 Using Twilio authentication for media download');
     } else if (isTwilioUrl) {
-      console.log('🌐 Attempting to download Twilio media without authentication (public access)');
+      console.log('⚠️  No Twilio credentials provided - attempting public access');
     }
     
-    client.get(url, options, (response) => {
-      console.log(`📥 Download response status: ${response.statusCode}`);
-      console.log(`📥 Response headers:`, JSON.stringify(response.headers, null, 2));
-      
-      // Handle redirects
-      if (response.statusCode === 301 || response.statusCode === 302) {
-        file.close();
-        fs.unlinkSync(filepath);
-        console.log(`🔄 Redirecting to: ${response.headers.location}`);
-        return downloadFile(response.headers.location, filepath, accountSid, authToken).then(resolve).catch(reject);
-      }
-      
-      // Handle authentication errors - retry with auth if we didn't use it
-      if ((response.statusCode === 401 || response.statusCode === 403) && isTwilioUrl && accountSid && authToken && !options.headers['Authorization']) {
-        file.close();
-        if (fs.existsSync(filepath)) {
-          fs.unlinkSync(filepath);
-        }
-        console.log('⚠️  Public access failed (401/403), retrying with authentication...');
-        // Retry with auth
-        const credentials = Buffer.from(`${accountSid}:${authToken}`).toString('base64');
-        const retryOptions = {
-          headers: {
-            'Authorization': `Basic ${credentials}`
-          }
-        };
-        return downloadFile(url, filepath, accountSid, authToken).then(resolve).catch(reject);
-      }
-      
-      if (response.statusCode !== 200) {
-        file.close();
-        if (fs.existsSync(filepath)) {
-          fs.unlinkSync(filepath);
-        }
-        let errorBody = '';
-        response.on('data', (chunk) => {
-          errorBody += chunk.toString();
-        });
-        response.on('end', () => {
-          console.error(`❌ Error response body: ${errorBody}`);
-          reject(new Error(`Failed to download file: HTTP ${response.statusCode} - ${errorBody.substring(0, 200)}`));
-        });
-        return;
-      }
-      
-      // Track download progress
-      let downloadedBytes = 0;
-      response.on('data', (chunk) => {
-        downloadedBytes += chunk.length;
-      });
-      
-      response.pipe(file);
-      file.on('finish', () => {
-        file.close();
-        console.log(`✅ Download complete: ${downloadedBytes} bytes`);
-        resolve(filepath);
-      });
-    }).on('error', (err) => {
-      console.error('❌ Download error:', err.message);
-      if (fs.existsSync(filepath)) {
-        fs.unlink(filepath, () => {}); // Delete the file on error
-      }
-      reject(err);
-    });
-  });
+    console.log(`⬇️  Fetching: ${url}`);
+    
+    // Use fetch to download the file
+    const response = await fetch(url, { headers });
+    
+    console.log(`📥 Download response status: ${response.status}`);
+    console.log(`📥 Response headers:`, JSON.stringify(Object.fromEntries(response.headers.entries()), null, 2));
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`❌ Error response body: ${errorText.substring(0, 500)}`);
+      throw new Error(`Failed to download file: HTTP ${response.status} - ${errorText.substring(0, 200)}`);
+    }
+    
+    // Get the file as a buffer
+    const arrayBuffer = await response.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+    
+    // Write to file
+    fs.writeFileSync(filepath, buffer);
+    
+    console.log(`✅ Download complete: ${buffer.length} bytes`);
+    return filepath;
+  } catch (error) {
+    console.error('❌ Download error:', error.message);
+    if (fs.existsSync(filepath)) {
+      fs.unlinkSync(filepath);
+    }
+    throw error;
+  }
 }
 
 // Helper function to transcribe audio using OpenAI Whisper
