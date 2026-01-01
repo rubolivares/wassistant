@@ -5,6 +5,7 @@ import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { File } from 'node:buffer';
+import querystring from 'querystring';
 
 dotenv.config();
 
@@ -267,12 +268,12 @@ app.post('/twilio', async (req, res) => {
     console.log('Full request body:', JSON.stringify(req.body, null, 2));
     
     // If body is a string, it means Express didn't parse it - parse it manually
-    if (typeof req.body === 'string' || (typeof req.body === 'object' && req.body.body)) {
+    if (typeof req.body === 'string' || (typeof req.body === 'object' && req.body.body && typeof req.body.body === 'string')) {
       console.log('⚠️  Body appears to be unparsed, attempting to parse...');
-      const querystring = require('querystring');
-      const parsedBody = typeof req.body === 'string' ? querystring.parse(req.body) : querystring.parse(req.body.body);
-      // Merge parsed body with existing body
-      Object.assign(req.body, parsedBody);
+      const bodyString = typeof req.body === 'string' ? req.body : req.body.body;
+      const parsedBody = querystring.parse(bodyString);
+      // Replace body with parsed version
+      req.body = parsedBody;
       console.log('✅ Parsed body:', JSON.stringify(req.body, null, 2));
     }
     
