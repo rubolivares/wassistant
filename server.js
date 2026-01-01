@@ -304,15 +304,13 @@ app.post('/twilio', async (req, res) => {
     console.log('📎 Number of Media:', numMedia);
     
     // Check if there's a voice note/audio message
-    if (numMedia > 0) {
-      const mediaUrl = req.body[`MediaUrl0`] || req.body[`mediaUrl0`];
-      const mediaContentType = req.body[`MediaContentType0`] || req.body[`mediaContentType0`] || '';
-      
+    // Handle both form-encoded format (MediaUrl0) and JSON format (mediaUrl)
+    if (numMedia > 0 || mediaUrl) {
       console.log('🎤 Media URL:', mediaUrl);
       console.log('🎤 Media Content Type:', mediaContentType);
       
       // Check if it's an audio file
-      if (mediaUrl && mediaContentType.startsWith('audio/')) {
+      if (mediaUrl && (mediaContentType.startsWith('audio/') || mediaUrl.includes('.wav') || mediaUrl.includes('.ogg') || mediaUrl.includes('.mp3'))) {
         console.log('🎵 Audio file detected! Processing transcription...');
         
         // Get Twilio credentials for authentication (optional - media URLs are public by default)
