@@ -348,6 +348,12 @@ app.post('/twilio', async (req, res) => {
 <Response>
   <Message>${escapeXml(transcription)}</Message>
 </Response>`;
+        
+        // Log what we're sending to Twilio
+        console.log('\n📤 Sending TwiML response to Twilio:');
+        console.log(twimlResponse);
+        console.log('');
+        
         res.send(twimlResponse);
         return;
       }
