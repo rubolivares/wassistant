@@ -4,8 +4,14 @@ import OpenAI from 'openai';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import { File } from 'node:buffer';
 
 dotenv.config();
+
+// Set File global for OpenAI SDK compatibility (required for Node < 20)
+if (typeof globalThis.File === 'undefined') {
+  globalThis.File = File;
+}
 
 // Initialize OpenAI client
 const openai = new OpenAI({
