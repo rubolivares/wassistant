@@ -139,6 +139,29 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+// Simple test endpoint for Railway testing (no WhatsApp required)
+app.get('/test', (req, res) => {
+  console.log('✅ Test endpoint hit!');
+  res.json({ 
+    status: 'success', 
+    message: 'Railway deployment is working!',
+    timestamp: new Date().toISOString(),
+    method: 'GET'
+  });
+});
+
+app.post('/test', (req, res) => {
+  console.log('✅ Test POST endpoint hit!');
+  console.log('Request body:', JSON.stringify(req.body, null, 2));
+  res.json({ 
+    status: 'success', 
+    message: 'Railway deployment is working!',
+    timestamp: new Date().toISOString(),
+    method: 'POST',
+    receivedData: req.body
+  });
+});
+
 // Start server
 app.listen(PORT, () => {
   console.log(`WhatsApp AI Assistant server running on port ${PORT}`);
