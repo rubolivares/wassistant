@@ -331,16 +331,14 @@ app.post('/twilio', async (req, res) => {
         fs.unlinkSync(tempAudioPath);
         tempAudioPath = null;
         
-        // Return JSON response with transcription
+        // Return TwiML response with transcription to Twilio
         res.status(200);
-        res.type('application/json');
-        res.json({
-          success: true,
-          transcription: transcription,
-          messageSid: messageSid,
-          from: from,
-          mediaType: mediaContentType
-        });
+        res.type('text/xml');
+        const twimlResponse = `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Message>${transcription}</Message>
+</Response>`;
+        res.send(twimlResponse);
         return;
       }
     }
