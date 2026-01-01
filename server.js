@@ -352,30 +352,23 @@ app.post('/twilio', async (req, res) => {
         fs.unlinkSync(tempAudioPath);
         tempAudioPath = null;
         
-        // Escape XML special characters in transcription
-        const escapeXml = (text) => {
-          return text
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;')
-            .replace(/'/g, '&apos;');
+        // Return JSON response with transcription
+        res.status(200);
+        res.type('application/json');
+        const jsonResponse = {
+          success: true,
+          transcription: transcription,
+          messageSid: messageSid,
+          from: from,
+          mediaType: mediaContentType
         };
         
-        // Return TwiML response with transcription to Twilio
-        res.status(200);
-        res.type('text/xml');
-        const twimlResponse = `<?xml version="1.0" encoding="UTF-8"?>
-<Response>
-  <Message>${escapeXml(transcription)}</Message>
-</Response>`;
-        
-        // Log what we're sending to Twilio
-        console.log('\n📤 Sending TwiML response to Twilio:');
-        console.log(twimlResponse);
+        // Log what we're sending
+        console.log('\n📤 Sending JSON response:');
+        console.log(JSON.stringify(jsonResponse, null, 2));
         console.log('');
         
-        res.send(twimlResponse);
+        res.json(jsonResponse);
         return;
       }
     }
