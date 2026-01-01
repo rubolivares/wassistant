@@ -267,8 +267,21 @@ app.post('/twilio', async (req, res) => {
         console.log('✅ Audio file downloaded:', tempAudioPath);
         
         // Transcribe using OpenAI Whisper
+        console.log('🔄 Sending audio to OpenAI Whisper for transcription...');
         const transcription = await transcribeAudio(tempAudioPath);
-        console.log('📝 Transcription:', transcription);
+        
+        // Log transcription with a readable format
+        console.log('\n' + '='.repeat(60));
+        console.log('🎤 VOICE NOTE TRANSCRIPTION RESULT');
+        console.log('='.repeat(60));
+        console.log('📞 From:', from);
+        console.log('🆔 Message SID:', messageSid);
+        console.log('📝 Transcription:');
+        console.log('─'.repeat(60));
+        console.log(transcription);
+        console.log('─'.repeat(60));
+        console.log('✅ Transcription completed successfully!');
+        console.log('='.repeat(60) + '\n');
         
         // Clean up temp file
         fs.unlinkSync(tempAudioPath);
