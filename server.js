@@ -262,7 +262,20 @@ app.post('/twilio', async (req, res) => {
   try {
     console.log('\n=== Twilio Webhook Received ===');
     console.log('Headers:', JSON.stringify(req.headers, null, 2));
+    console.log('Content-Type:', req.headers['content-type']);
+    console.log('Raw body type:', typeof req.body);
     console.log('Full request body:', JSON.stringify(req.body, null, 2));
+    
+    // If body is a string, it means Express didn't parse it - parse it manually
+    if (typeof req.body === 'string' || (typeof req.body === 'object' && req.body.body)) {
+      console.log('⚠️  Body appears to be unparsed, attempting to parse...');
+      const querystring = require('querystring');
+      const parsedBody = typeof req.body === 'string' ? querystring.parse(req.body) : querystring.parse(req.body.body);
+      // Merge parsed body with existing body
+      Object.assign(req.body, parsedBody);
+      console.log('✅ Parsed body:', JSON.stringify(req.body, null, 2));
+    }
+    
     console.log('');
     
     // Extract common Twilio message fields (case-insensitive)
