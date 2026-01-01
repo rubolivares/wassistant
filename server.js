@@ -304,7 +304,11 @@ app.post('/twilio', async (req, res) => {
         
         console.log('⬇️  Downloading audio file from Twilio...');
         await downloadFile(mediaUrl, tempAudioPath, twilioAccountSid, twilioAuthToken || null);
-        console.log('✅ Audio file downloaded:', tempAudioPath);
+        console.log('✅ Audio file downloaded successfully:', tempAudioPath);
+        
+        // Check file exists and get size
+        const stats = fs.statSync(tempAudioPath);
+        console.log(`📊 Audio file size: ${stats.size} bytes`);
         
         // Transcribe using OpenAI Whisper
         console.log('🔄 Sending audio to OpenAI Whisper for transcription...');
