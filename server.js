@@ -23,8 +23,9 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Middleware to parse JSON and form-encoded bodies
-app.use(express.json());
+// IMPORTANT: urlencoded must come before json to handle Twilio's form-encoded webhooks
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(express.json());
 
 // Webhook verification endpoint (for WhatsApp Cloud API)
 app.get('/webhook', (req, res) => {
