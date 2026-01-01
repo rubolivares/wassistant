@@ -206,10 +206,14 @@ function downloadFile(url, filepath, accountSid = null, authToken = null) {
     }
     
     client.get(url, options, (response) => {
+      console.log(`📥 Download response status: ${response.statusCode}`);
+      console.log(`📥 Response headers:`, JSON.stringify(response.headers, null, 2));
+      
       // Handle redirects
       if (response.statusCode === 301 || response.statusCode === 302) {
         file.close();
         fs.unlinkSync(filepath);
+        console.log(`🔄 Redirecting to: ${response.headers.location}`);
         return downloadFile(response.headers.location, filepath, accountSid, authToken).then(resolve).catch(reject);
       }
       
@@ -219,10 +223,14 @@ function downloadFile(url, filepath, accountSid = null, authToken = null) {
         if (fs.existsSync(filepath)) {
           fs.unlinkSync(filepath);
         }
-        console.log('⚠️  Public access failed, retrying with authentication...');
+        console.log('⚠️  Public access failed (401/403), retrying with authentication...');
         // Retry with auth
         const credentials = Buffer.from(`${accountSid}:${authToken}`).toString('base64');
-        options.headers['Authorization'] = `Basic ${credentials}`;
+        const retryOptions = {
+          headers: {
+            'Authorization': `Basic ${credentials}`
+          }
+        };
         return downloadFile(url, filepath, accountSid, authToken).then(resolve).catch(reject);
       }
       
@@ -231,16 +239,31 @@ function downloadFile(url, filepath, accountSid = null, authToken = null) {
         if (fs.existsSync(filepath)) {
           fs.unlinkSync(filepath);
         }
-        reject(new Error(`Failed to download file: HTTP ${response.statusCode}`));
+        let errorBody = '';
+        response.on('data', (chunk) => {
+          errorBody += chunk.toString();
+        });
+        response.on('end', () => {
+          console.error(`❌ Error response body: ${errorBody}`);
+          reject(new Error(`Failed to download file: HTTP ${response.statusCode} - ${errorBody.substring(0, 200)}`));
+        });
         return;
       }
+      
+      // Track download progress
+      let downloadedBytes = 0;
+      response.on('data', (chunk) => {
+        downloadedBytes += chunk.length;
+      });
       
       response.pipe(file);
       file.on('finish', () => {
         file.close();
+        console.log(`✅ Download complete: ${downloadedBytes} bytes`);
         resolve(filepath);
       });
     }).on('error', (err) => {
+      console.error('❌ Download error:', err.message);
       if (fs.existsSync(filepath)) {
         fs.unlink(filepath, () => {}); // Delete the file on error
       }
