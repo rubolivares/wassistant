@@ -269,13 +269,16 @@ app.post('/twilio', async (req, res) => {
     console.log('Full request body:', JSON.stringify(req.body, null, 2));
     
     // If body is a string, it means Express didn't parse it - parse it manually
-    if (typeof req.body === 'string' || (typeof req.body === 'object' && req.body.body && typeof req.body.body === 'string')) {
-      console.log('⚠️  Body appears to be unparsed, attempting to parse...');
-      const bodyString = typeof req.body === 'string' ? req.body : req.body.body;
-      const parsedBody = querystring.parse(bodyString);
-      // Replace body with parsed version
-      req.body = parsedBody;
+    if (typeof req.body === 'string') {
+      console.log('⚠️  Body is a string, parsing manually...');
+      req.body = querystring.parse(req.body);
       console.log('✅ Parsed body:', JSON.stringify(req.body, null, 2));
+    } else if (req.body && typeof req.body === 'object' && req.body.body && typeof req.body.body === 'string') {
+      console.log('⚠️  Body nested in body property, parsing...');
+      req.body = querystring.parse(req.body.body);
+      console.log('✅ Parsed body:', JSON.stringify(req.body, null, 2));
+    } else if (req.body && typeof req.body === 'object' && Object.keys(req.body).length > 0) {
+      console.log('✅ Body already parsed by Express');
     }
     
     console.log('');
