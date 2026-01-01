@@ -284,12 +284,17 @@ app.post('/twilio', async (req, res) => {
     console.log('');
     
     // Extract common Twilio message fields (case-insensitive)
+    // Handle both form-encoded (Twilio standard) and JSON formats
     const messageBody = req.body.Body || req.body.body || req.body.BodyText || '';
     const from = req.body.From || req.body.from || '';
     const to = req.body.To || req.body.to || '';
     const messageSid = req.body.MessageSid || req.body.messageSid || '';
     const accountSid = req.body.AccountSid || req.body.accountSid || '';
     const numMedia = parseInt(req.body.NumMedia || req.body.numMedia || '0');
+    
+    // Handle JSON format (from automation tools)
+    const mediaUrl = req.body[`MediaUrl0`] || req.body[`mediaUrl0`] || req.body.mediaUrl || '';
+    const mediaContentType = req.body[`MediaContentType0`] || req.body[`mediaContentType0`] || req.body.mediaType || '';
     
     console.log('📨 Message Content:', messageBody);
     console.log('📞 From:', from);
