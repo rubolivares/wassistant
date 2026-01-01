@@ -300,6 +300,8 @@ app.post('/twilio', async (req, res) => {
         console.log('🎵 Audio file detected! Processing transcription...');
         
         // Get Twilio credentials for authentication (optional - media URLs are public by default)
+        // Use Account SID from env if available, otherwise use the one from webhook
+        const twilioAccountSid = process.env.TWILIO_ACCOUNT_SID || accountSid;
         const twilioAuthToken = process.env.TWILIO_AUTH_TOKEN;
         
         // Download the audio file
@@ -308,7 +310,7 @@ app.post('/twilio', async (req, res) => {
         tempAudioPath = join(__dirname, `temp_audio_${Date.now()}.${mediaContentType.split('/')[1] || 'ogg'}`);
         
         console.log('⬇️  Downloading audio file from Twilio...');
-        await downloadFile(mediaUrl, tempAudioPath, accountSid, twilioAuthToken || null);
+        await downloadFile(mediaUrl, tempAudioPath, twilioAccountSid, twilioAuthToken || null);
         console.log('✅ Audio file downloaded:', tempAudioPath);
         
         // Transcribe using OpenAI Whisper
