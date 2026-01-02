@@ -351,13 +351,27 @@ app.post('/twilio', async (req, res) => {
         // Clean up temp file
         fs.unlinkSync(tempAudioPath);
         tempAudioPath = null;
+
+        // Process transcription with GPT
+        const gptResponse = await openai.chat.completions.create({
+          model: 'gpt-4o-mini',
+          messages: [
+            {
+              role: 'user',
+              content: transcription
+            }
+          ],
+          max_tokens: 500
+        });
+        
+        const gptText = gptResponse.choices[0]?.message?.content || transcription;
         
         // Return JSON response with transcription
         res.status(200);
         res.type('application/json');
         const jsonResponse = {
           success: true,
-          transcription: transcription,
+          transcription: gptText,
           messageSid: messageSid,
           from: from,
           mediaType: mediaContentType
