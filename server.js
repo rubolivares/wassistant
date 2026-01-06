@@ -427,8 +427,8 @@ app.post('/twilio', async (req, res) => {
             },
             body: JSON.stringify({ action: start ? 'start' : 'end' }),
           });
-          console.log('Toggle shift response:', response.status);
-          
+          const data = await response.json();
+          console.log('Toggle shift response:', response.status, '-', data.message);
           return data.message;
         }
 
