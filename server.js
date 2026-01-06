@@ -440,15 +440,14 @@ app.post('/twilio', async (req, res) => {
 
         let result = null;
 
-        gptResponse.output.forEach(async (item)=>{
+        for(const item of gptResponse.output){
           if(item.type === 'function_call'){
            if (item.name === 'toggle_shift'){
             result = await toggleShift(JSON.parse(item.arguments).start);
             console.log('Toggle shift result:', result);
            }
           }
-
-        });
+        }
         
         // Return JSON response with transcription
         res.status(200);
