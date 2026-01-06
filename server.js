@@ -422,22 +422,25 @@ app.post('/twilio', async (req, res) => {
           console.log('Toggling shift from gpt:', start);
           const response = await fetch('https://crm.inglesahorita.com/api/ruben-shift-toggle', {
             method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
             body: JSON.stringify({ action: start ? 'start' : 'end' }),
           });
-          console.log('Toggle shift response:', response);
+          console.log('Toggle shift response:', response.status);
           return response.json();
         }
 
         const gptResponse = await openai.responses.create({
-          input: "start a shift",
+          input: transcription,
           model: 'gpt-5',
           tools
         });
 
-        gptResponse.output.forEach((item)=>{
+        gptResponse.output.forEach(async (item)=>{
           if(item.type === 'function_call'){
            if (item.name === 'toggle_shift'){
-            const result = toggleShift(JSON.parse(item.arguments).start);
+            const result = await toggleShift(JSON.parse(item.arguments).start);
             console.log('Toggle shift result:', result);
            }
           }
