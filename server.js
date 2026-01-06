@@ -428,7 +428,8 @@ app.post('/twilio', async (req, res) => {
             body: JSON.stringify({ action: start ? 'start' : 'end' }),
           });
           console.log('Toggle shift response:', response.status);
-          return response.json();
+          
+          return data.message;
         }
 
         const gptResponse = await openai.responses.create({
@@ -454,7 +455,7 @@ app.post('/twilio', async (req, res) => {
         res.type('application/json');
         const jsonResponse = {
           success: true,
-          transcription: result ? JSON.stringify(result) : '',
+          transcription: result ? result : '',
           messageSid: messageSid,
           from: from,
           mediaType: mediaContentType
@@ -518,6 +519,7 @@ app.listen(PORT, () => {
   console.log(`Twilio Webhook URL: http://localhost:${PORT}/twilio`);
   console.log(`Health check: http://localhost:${PORT}/health`);
 });
+
 
 
 
