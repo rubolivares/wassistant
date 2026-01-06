@@ -419,6 +419,7 @@ app.post('/twilio', async (req, res) => {
         ];
 
         const toggleShift = async (start) => {
+          console.log('Toggling shift from gpt:', start);
           const response = await fetch('https://crm.inglesahorita.com/api/ruben-shift-toggle', {
             method: 'POST',
             body: JSON.stringify({ action: start ? 'start' : 'end' }),
