@@ -179,6 +179,53 @@ app.post('/test', (req, res) => {
   });
 });
 
+app.post('/toggle-shift-test', async (req, res) => {
+
+  const tools = [
+    {
+      type: "function",
+      name: "toggle_shift",
+      description: "send a http request to webhook url to toggle a shift",
+      parameters:{
+        type: "object",
+        properties: {
+          start: {
+            type: "boolean",
+            description: "true to start a shift, false to end a shift"
+          }
+        },
+        required: ["start"],
+      },
+    }
+  ];
+
+  const toggleShift = async (start) => {
+    const response = await fetch('https://crm.inglesahorita.com/api/ruben-shift-toggle', {
+      method: 'POST',
+      body: JSON.stringify({ action: start ? 'start' : 'end' }),
+    });
+    console.log('Toggle shift response:', response);
+    return response.json();
+  }
+
+  const gptResponse = await openai.responses.create({
+    input: "start a shift",
+    model: 'gpt-5',
+    tools
+  });
+
+  gptResponse.output.forEach((item)=>{
+    if(item.type === 'function_call'){
+     if (item.name === 'toggle_shift'){
+      const result = toggleShift(JSON.parse(item.arguments).start);
+      console.log('Toggle shift result:', result);
+     }
+    }
+
+  });
+  
+});
+
 // Twilio webhook endpoint (GET for status callbacks, POST for incoming messages)
 app.get('/twilio', (req, res) => {
   console.log('\n=== Twilio GET Request (Status Callback) ===');
@@ -352,26 +399,55 @@ app.post('/twilio', async (req, res) => {
         fs.unlinkSync(tempAudioPath);
         tempAudioPath = null;
 
-        // Process transcription with GPT
-        const gptResponse = await openai.chat.completions.create({
-          model: 'gpt-4o-mini',
-          messages: [
-            {
-              role: 'user',
-              content: transcription
-            }
-          ],
-          max_tokens: 500
+        const tools = [
+          {
+            type: "function",
+            name: "toggle_shift",
+            description: "send a http request to webhook url to toggle a shift",
+            parameters:{
+              type: "object",
+              properties: {
+                start: {
+                  type: "boolean",
+                  description: "true to start a shift, false to end a shift"
+                }
+              },
+              required: ["start"],
+            },
+          }
+        ];
+
+        const toggleShift = async (start) => {
+          const response = await fetch('https://crm.inglesahorita.com/api/ruben-shift-toggle', {
+            method: 'POST',
+            body: JSON.stringify({ action: start ? 'start' : 'end' }),
+          });
+          console.log('Toggle shift response:', response);
+          return response.json();
+        }
+
+        const gptResponse = await openai.responses.create({
+          input: "start a shift",
+          model: 'gpt-5',
+          tools
         });
-        
-        const gptText = gptResponse.choices[0]?.message?.content || transcription;
+
+        gptResponse.output.forEach((item)=>{
+          if(item.type === 'function_call'){
+           if (item.name === 'toggle_shift'){
+            const result = toggleShift(JSON.parse(item.arguments).start);
+            console.log('Toggle shift result:', result);
+           }
+          }
+
+        });
         
         // Return JSON response with transcription
         res.status(200);
         res.type('application/json');
         const jsonResponse = {
           success: true,
-          transcription: gptText,
+          transcription: gptResponse.output_text,
           messageSid: messageSid,
           from: from,
           mediaType: mediaContentType
@@ -435,4 +511,8 @@ app.listen(PORT, () => {
   console.log(`Twilio Webhook URL: http://localhost:${PORT}/twilio`);
   console.log(`Health check: http://localhost:${PORT}/health`);
 });
+
+
+
+
 
