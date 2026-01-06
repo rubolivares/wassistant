@@ -437,10 +437,12 @@ app.post('/twilio', async (req, res) => {
           tools
         });
 
+        let result = null;
+
         gptResponse.output.forEach(async (item)=>{
           if(item.type === 'function_call'){
            if (item.name === 'toggle_shift'){
-            const result = await toggleShift(JSON.parse(item.arguments).start);
+            result = await toggleShift(JSON.parse(item.arguments).start);
             console.log('Toggle shift result:', result);
            }
           }
@@ -452,7 +454,7 @@ app.post('/twilio', async (req, res) => {
         res.type('application/json');
         const jsonResponse = {
           success: true,
-          transcription: gptResponse.output_text,
+          transcription: result ? JSON.stringify(result) : '',
           messageSid: messageSid,
           from: from,
           mediaType: mediaContentType
@@ -516,6 +518,7 @@ app.listen(PORT, () => {
   console.log(`Twilio Webhook URL: http://localhost:${PORT}/twilio`);
   console.log(`Health check: http://localhost:${PORT}/health`);
 });
+
 
 
 
