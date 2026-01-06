@@ -200,6 +200,7 @@ app.post('/toggle-shift-test', async (req, res) => {
   ];
 
   const toggleShift = async (start) => {
+    console.log('Toggling shift:', start);
     const response = await fetch('https://crm.inglesahorita.com/api/ruben-shift-toggle', {
       method: 'POST',
       body: JSON.stringify({ action: start ? 'start' : 'end' }),
